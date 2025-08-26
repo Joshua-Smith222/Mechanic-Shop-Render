@@ -3,3 +3,8 @@ __pycache__/
 *.pyc
 .env
 .flaskenv
+.pytest_cache/
+instance/
+.DS_Store
+.vscode/
+.idea/
