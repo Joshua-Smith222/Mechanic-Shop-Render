@@ -1,12 +1,24 @@
+# app/config.py
 import os
-from dotenv import load_dotenv
-load_dotenv()
 
-class Config:
-    SECRET_KEY = os.getenv("SECRET_KEY", "fallback_dev_secret")  # ✅ Add this line
-
-    SQLALCHEMY_DATABASE_URI  = (
-        f"mysql+mysqlconnector://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}"
-        f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
-    )
+class BaseConfig:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    JSON_SORT_KEYS = False
+
+class DevelopmentConfig(BaseConfig):
+    DEBUG = True
+    SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret")
+    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///dev.db")
+
+class TestingConfig(BaseConfig):
+    TESTING = True
+    SECRET_KEY = "test-secret"
+    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+
+class ProductionConfig(BaseConfig):
+    SECRET_KEY = os.getenv("SECRET_KEY")  # must be set in Render
+    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")  # set in Render
+    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
+
+# Back-compat if anything imports Config elsewhere
+Config = DevelopmentConfig

@@ -1,19 +1,26 @@
 # app/__init__.py
+import os
 from flask import Flask, jsonify
-from .config import Config, os
-from .extensions import db, migrate, ma
 from flask_swagger_ui import get_swaggerui_blueprint
 
-def create_app(config_overrides=None):
+from .extensions import db, migrate, ma
+
+def create_app(config_object=None):
     app = Flask(__name__)
     app.url_map.strict_slashes = False
-    app.config.from_object(Config)
-    app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "fallback_dev_secret")
 
-    if config_overrides:
-        app.config.update(config_overrides)
+    # Allow: explicit class passed in, or APP_CONFIG="app.config.ProductionConfig",
+    # or default to DevelopmentConfig.
+    cfg = config_object or os.getenv("APP_CONFIG") or "app.config.DevelopmentConfig"
+    if isinstance(cfg, str):
+        app.config.from_object(cfg)
+    else:
+        app.config.from_object(cfg)
 
-    # init extensions
+    # Final fallback to avoid KeyError locally
+    app.config["SECRET_KEY"] = app.config.get("SECRET_KEY") or os.getenv("SECRET_KEY", "fallback_dev_secret")
+
+    # --- init extensions ---
     db.init_app(app)
     migrate.init_app(app, db)
     ma.init_app(app)
@@ -28,11 +35,16 @@ def create_app(config_overrides=None):
     )
     app.register_blueprint(swaggerui_bp, url_prefix=SWAGGER_URL)
 
-    # provide the swagger.json endpoint
+    # swagger.json endpoint
     from app.swagger import swagger_spec
     @app.route("/swagger.json")
     def swagger_json():
         return jsonify(swagger_spec)
+
+    # --- health check (handy for Render) ---
+    @app.get("/health")
+    def health():
+        return {"status": "ok"}
 
     # --- Blueprints ---
     from .blueprints.customers.routes import customers_bp
@@ -44,12 +56,10 @@ def create_app(config_overrides=None):
     from .blueprints.mechanics.mechanic_ticket_routes import mechanic_ticket_bp
     from .blueprints.auth.routes import auth_bp
 
-    # Register with prefixes the tests expect
     app.register_blueprint(customers_bp,       url_prefix="/customers")
     app.register_blueprint(inventory_bp,       url_prefix="/inventory")
     app.register_blueprint(mechanics_bp,       url_prefix="/mechanics")
-    app.register_blueprint(tickets_bp,         url_prefix="/service_tickets")  # ← fix
-    # the following aren’t used by tests but keep them available
+    app.register_blueprint(tickets_bp,         url_prefix="/service_tickets")
     app.register_blueprint(vehicles_bp,        url_prefix="/vehicles")
     app.register_blueprint(customer_ticket_bp, url_prefix="/customer")
     app.register_blueprint(mechanic_ticket_bp, url_prefix="/mechanic")
