@@ -16,7 +16,8 @@ depends_on = None
 # --- define the enum ONCE and reuse it ---
 service_ticket_status_enum = sa.Enum(
     'open', 'in_progress', 'closed',
-    name='service_ticket_status'
+    name='service_ticket_status',
+    create_type=False  # we will create it manually in upgrade(
 )
 
 def upgrade():
