@@ -6,6 +6,7 @@ Create Date: 2025-06-18 01:46:10.545270
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql as psql  # <<< add this
 
 # revision identifiers, used by Alembic.
 revision = '4daf2223518c'
@@ -13,17 +14,25 @@ down_revision = None
 branch_labels = None
 depends_on = None
 
-# --- define the enum ONCE and reuse it ---
-service_ticket_status_enum = sa.Enum(
-    'open', 'in_progress', 'closed',
+# define enum ONCE; do not let columns auto-create it
+SERVICE_TICKET_STATUS_VALUES = ('open', 'in_progress', 'closed')
+service_ticket_status_enum = psql.ENUM(
+    *SERVICE_TICKET_STATUS_VALUES,
     name='service_ticket_status',
-    create_type=False  # we will create it manually in upgrade(
+    create_type=False  # <<< critical
 )
 
 def upgrade():
-    # Create the enum type before using it in a column (idempotent on re-run)
     bind = op.get_bind()
-    service_ticket_status_enum.create(bind, checkfirst=True)
+
+    # create the type if it doesn't already exist (safe on reruns)
+    op.execute(
+        "DO $$ BEGIN "
+        "IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'service_ticket_status') THEN "
+        "CREATE TYPE service_ticket_status AS ENUM ('open','in_progress','closed'); "
+        "END IF; "
+        "END $$;"
+    )
 
     op.create_table(
         'customer',
@@ -66,7 +75,8 @@ def upgrade():
         sa.Column('date_in', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
         sa.Column('date_out', sa.DateTime(), nullable=True),
         sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('status', service_ticket_status_enum, nullable=False),  # use the defined enum
+        # use the SAME enum object with create_type=False so no auto CREATE TYPE
+        sa.Column('status', service_ticket_status_enum, nullable=False),
         sa.Column('total_cost', sa.Numeric(precision=10, scale=2), nullable=True),
         sa.ForeignKeyConstraint(['vin'], ['vehicle.vin'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('ticket_id')
@@ -88,6 +98,6 @@ def downgrade():
     op.drop_table('vehicle')
     op.drop_table('mechanic')
     op.drop_table('customer')
-    # Drop the enum type after tables that used it have been dropped
-    bind = op.get_bind()
-    service_ticket_status_enum.drop(bind, checkfirst=True)
+
+    # drop type only if present
+    op.execute("DROP TYPE IF EXISTS service_ticket_status")
