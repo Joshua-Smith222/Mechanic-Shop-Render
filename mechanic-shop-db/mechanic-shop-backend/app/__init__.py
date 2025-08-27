@@ -1,6 +1,6 @@
 # app/__init__.py
 import os
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request, redirect
 from flask_swagger_ui import get_swaggerui_blueprint
 
 from .extensions import db, migrate, ma
@@ -39,13 +39,19 @@ def create_app(config_object=None):
     from app.swagger import swagger_spec
     @app.route("/swagger.json")
     def swagger_json():
-        return jsonify(swagger_spec)
+        spec = dict(swagger_spec)  # make a copy
+        spec["host"] = request.headers.get("X-Forwarded-Host", request.host)
+        spec["schemes"] = [request.headers.get("X-Forwarded-Proto", "https")]
+        return jsonify(spec)
 
     # --- health check (handy for Render) ---
     @app.get("/health")
     def health():
-        return {"status": "ok"}
+        return jsonify(status= "ok")
 
+    @app.get("/")
+    def index():
+        return redirect("/docs", code=302)
     # --- Blueprints ---
     from .blueprints.customers.routes import customers_bp
     from .blueprints.Inventory.routes import inventory_bp
