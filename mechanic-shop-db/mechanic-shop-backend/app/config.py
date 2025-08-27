@@ -19,6 +19,7 @@ class ProductionConfig(BaseConfig):
     SECRET_KEY = os.getenv("SECRET_KEY")  # must be set in Render
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")  # set in Render
     SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 # Back-compat if anything imports Config elsewhere
 Config = DevelopmentConfig
